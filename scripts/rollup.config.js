@@ -3,7 +3,7 @@ import nodeResolve from 'rollup-plugin-node-resolve'
 import babel from 'rollup-plugin-babel'
 import replace from 'rollup-plugin-replace'
 import commonjs from 'rollup-plugin-commonjs'
-import uglify from 'rollup-plugin-uglify'
+import { uglify } from 'rollup-plugin-uglify'
 import { sizeSnapshot } from 'rollup-plugin-size-snapshot'
 import { pascalCase } from 'change-case'
 
@@ -17,12 +17,16 @@ const input = `./${path.join(PACKAGES_SRC_DIR, packageName, 'index.js')}`
 
 const outDir = path.join(PACKAGES_OUT_DIR, packageName, 'dist')
 
-const isExternal = id => !id.startsWith('.') && !id.startsWith('/')
+const isExternal = id =>
+  !id.startsWith('\0') && !id.startsWith('.') && !id.startsWith('/')
 
-const getBabelOptions = () => ({
+const getBabelOptions = ({ useESModules }) => ({
   exclude: '**/node_modules/**',
   runtimeHelpers: true,
+  plugins: [['@babel/transform-runtime', { useESModules }]],
 })
+
+const matchSnapshot = process.env.SNAPSHOT === 'match'
 
 export default [
   {
@@ -38,10 +42,10 @@ export default [
     external: ['react'],
     plugins: [
       nodeResolve(),
-      babel(getBabelOptions()),
+      babel(getBabelOptions({ useESModules: true })),
       commonjs(),
       replace({ 'process.env.NODE_ENV': JSON.stringify('development') }),
-      sizeSnapshot(),
+      sizeSnapshot({ matchSnapshot }),
     ],
   },
 
@@ -58,10 +62,10 @@ export default [
     external: ['react'],
     plugins: [
       nodeResolve(),
-      babel(getBabelOptions()),
+      babel(getBabelOptions({ useESModules: true })),
       commonjs(),
       replace({ 'process.env.NODE_ENV': JSON.stringify('production') }),
-      sizeSnapshot(),
+      sizeSnapshot({ matchSnapshot }),
       uglify(),
     ],
   },
@@ -73,7 +77,7 @@ export default [
       format: 'cjs',
     },
     external: isExternal,
-    plugins: [babel(getBabelOptions())],
+    plugins: [babel(getBabelOptions({ useESModules: false }))],
   },
 
   {
@@ -83,6 +87,9 @@ export default [
       format: 'es',
     },
     external: isExternal,
-    plugins: [babel(getBabelOptions()), sizeSnapshot()],
+    plugins: [
+      babel(getBabelOptions({ useESModules: true })),
+      sizeSnapshot({ matchSnapshot }),
+    ],
   },
 ]
